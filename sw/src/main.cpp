@@ -1,21 +1,15 @@
 #include "main.hpp"
+#include "pinout.h"
 
-#define LEFT_MOTOR_SPEED_PIN  7
-#define LEFT_MOTOR_A_PIN      8
-#define LEFT_MOTOR_B_PIN      9
-#define RIGHT_MOTOR_SPEED_PIN 10
-#define RIGHT_MOTOR_A_PIN     11
-#define RIGHT_MOTOR_B_PIN     12
+uint8_t speeds[3] = {50, 120, 255};
 
-uint8_t speeds[3] = {100, 150, 255};
-
-Motor left_motor(LEFT_MOTOR_SPEED_PIN, LEFT_MOTOR_A_PIN, LEFT_MOTOR_B_PIN);
-Motor right_motor(RIGHT_MOTOR_SPEED_PIN, RIGHT_MOTOR_A_PIN, RIGHT_MOTOR_B_PIN);
+Motor left_belt_motor(COMMON_BELT_MOTOR_SPEED_PIN, LEFT_BELT_MOTOR_A_PIN, LEFT_BELT_MOTOR_B_PIN);
+Motor right_belt_motor(COMMON_BELT_MOTOR_SPEED_PIN, RIGHT_BELT_MOTOR_A_PIN, RIGHT_BELT_MOTOR_B_PIN);
 
 void setup() {
   Serial.begin(9600);
-  left_motor.init();
-  right_motor.init();
+  left_belt_motor.init();
+  right_belt_motor.init();
 }
 
 void loop() {
@@ -36,30 +30,36 @@ void loop() {
       {
       case '0':
         ON = 0;
-        left_motor.set(0, 0);
-        right_motor.set(0, 0);
+        left_belt_motor.stop();
+        right_belt_motor.stop();
         break;
       case '2':
-        left_motor.stop();
+        left_belt_motor.stop();
         break;
       case '3':
-        right_motor.stop();
+        right_belt_motor.stop();
         break;
       case 'L':
-        left_motor.set(speeds[gear], 1);
+        left_belt_motor.set_direction(1);
+        left_belt_motor.run();
         break;
       case 'l':
-        left_motor.set(speeds[gear], 0);
+        left_belt_motor.set_direction(0);
+        left_belt_motor.run();
         break;
       case 'R':
-        right_motor.set(speeds[gear], 1);
+        right_belt_motor.set_direction(1);
+        right_belt_motor.run();
         break;
       case 'r':
-        right_motor.set(speeds[gear], 0);
+        right_belt_motor.set_direction(0);
+        right_belt_motor.run();
         break;
       case 'G':
         while (!Serial.available());
         gear = Serial.read() - '0';
+        left_belt_motor.set_speed(speeds[gear]);
+        right_belt_motor.set_speed(speeds[gear]);
         break;
       
       default:
