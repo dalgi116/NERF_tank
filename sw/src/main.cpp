@@ -1,14 +1,13 @@
-#include "main.hpp"
+#include "Motor.h"
 #include "pinout.h"
-
-constexpr uint8_t belt_motor_speeds[3] = {150, 200, 255};
-constexpr uint8_t horizontal_motor_speed = 150;
-constexpr uint8_t vertical_motor_speed = 150;
+#include "config.h"
+#include <Servo.h>
 
 Motor left_belt_motor(COMMON_BELT_MOTOR_SPEED_PIN, LEFT_BELT_MOTOR_A_PIN, LEFT_BELT_MOTOR_B_PIN);
 Motor right_belt_motor(COMMON_BELT_MOTOR_SPEED_PIN, RIGHT_BELT_MOTOR_A_PIN, RIGHT_BELT_MOTOR_B_PIN);
 Motor horizontal_motor(HORIZONTAL_MOTOR_SPEED_PIN, HORIZONTAL_MOTOR_A_PIN, HORIZONTAL_MOTOR_B_PIN);
 Motor vertical_motor(VERTICAL_MOTOR_SPEED_PIN, VERTICAL_MOTOR_A_PIN, VERTICAL_MOTOR_B_PIN);
+Servo load_servo;
 
 void setup() {
   Serial.begin(9600);
@@ -22,11 +21,14 @@ void setup() {
   right_belt_motor.set_speed(belt_motor_speeds[0]);
   horizontal_motor.set_speed(horizontal_motor_speed);
   vertical_motor.set_speed(vertical_motor_speed);
+
+  load_servo.attach(LOAD_SERVO_PIN);
 }
 
 void loop() {
-  static bool ON = 0;
+  static bool ON = 1;
   static uint8_t gear = 0;
+  static uint64_t load_servo_timer = 0;
 
   if (Serial.available()) {
     char command = Serial.read();
@@ -75,6 +77,8 @@ void loop() {
       case 'G':
         while (!Serial.available());
         gear = Serial.read() - '0';
+        Serial.print("Setting gear to: ");
+        Serial.println(gear);
         left_belt_motor.set_speed(belt_motor_speeds[gear]);
         right_belt_motor.set_speed(belt_motor_speeds[gear]);
         break;
@@ -102,10 +106,22 @@ void loop() {
         vertical_motor.set_direction(0);
         vertical_motor.run();
         break;
+
+      // Cannon motors control
+      case 'S':
+        load_servo.write(load_servo_shoot_pos);
+        load_servo_timer = millis();
+        break;
       
       default:
         break;
-      }
+      }   
     }
   }
+
+  // Prepare for the next shot
+  if (millis() - load_servo_timer > load_servo_delay_ms) {
+    load_servo.write(load_servo_default_pos);
+  }
+
 }
