@@ -1,127 +1,139 @@
-#include "Motor.h"
-#include "pinout.h"
-#include "config.h"
-#include <Servo.h>
-
-Motor left_belt_motor(COMMON_BELT_MOTOR_SPEED_PIN, LEFT_BELT_MOTOR_A_PIN, LEFT_BELT_MOTOR_B_PIN);
-Motor right_belt_motor(COMMON_BELT_MOTOR_SPEED_PIN, RIGHT_BELT_MOTOR_A_PIN, RIGHT_BELT_MOTOR_B_PIN);
-Motor horizontal_motor(HORIZONTAL_MOTOR_SPEED_PIN, HORIZONTAL_MOTOR_A_PIN, HORIZONTAL_MOTOR_B_PIN);
-Motor vertical_motor(VERTICAL_MOTOR_SPEED_PIN, VERTICAL_MOTOR_A_PIN, VERTICAL_MOTOR_B_PIN);
-Servo load_servo;
+#include "main.hpp"
 
 void setup() {
-  Serial.begin(9600);
+  // Initialize serial communication
+  Serial.begin(BAUD_RATE);
 
-  left_belt_motor.init();
-  right_belt_motor.init();
-  horizontal_motor.init();
-  vertical_motor.init();
+  // Initialize motors and servo
+  LBM.init();
+  RBM.init();
+  HM.init();
+  VM.init();
 
-  left_belt_motor.set_speed(belt_motor_speeds[0]);
-  right_belt_motor.set_speed(belt_motor_speeds[0]);
-  horizontal_motor.set_speed(horizontal_motor_speed);
-  vertical_motor.set_speed(vertical_motor_speed);
+  // Set initial speeds for motors
+  LBM.set_speed(BM_SPEEDS[0]);
+  RBM.set_speed(BM_SPEEDS[0]);
+  HM.set_speed(HM_SPEED);
+  VM.set_speed(VM_SPEED);
 
-  load_servo.attach(LOAD_SERVO_PIN);
+  // Set servo pin
+  LS.attach(LS_PIN);
 }
 
 void loop() {
-  static bool ON = 1;
-  static uint8_t gear = 0;
-  static uint64_t load_servo_timer = 0;
+  static bool    EN   = 1;  // Enable serial control
+  static uint8_t gear = 0;  // Belt motors gear (0, 1, 2)
 
-  if (Serial.available()) {
-    char command = Serial.read();
-    Serial.print("Received command: ");
-    Serial.println(command);
+  if (!Serial.available()) {
+    // No command received, do nothing
+    return;
+  }
 
-    if (command == '1') {
-      ON = 1;
-    }
+  //-----------------------
+  // COMMAND PROCESSING
+  //-----------------------
+  char command = Serial.read();
+  Serial.print("Command: ");
+  Serial.println(command);
 
-    if (ON) {
-      switch (command)
-      {
-      // ON-OFF control
-      case '0':
-        ON = 0;
-        left_belt_motor.stop();
-        right_belt_motor.stop();
-        horizontal_motor.stop();
-        vertical_motor.stop();
-        break;
+  if (command == '1') {
+    // Enable serial control
+    EN = 1;
+  }
 
-      // Belt motors control
-      case '2':
-        left_belt_motor.stop();
-        break;
-      case '3':
-        right_belt_motor.stop();
-        break;
-      case 'L':
-        left_belt_motor.set_direction(1);
-        left_belt_motor.run();
-        break;
-      case 'l':
-        left_belt_motor.set_direction(0);
-        left_belt_motor.run();
-        break;
-      case 'R':
-        right_belt_motor.set_direction(1);
-        right_belt_motor.run();
-        break;
-      case 'r':
-        right_belt_motor.set_direction(0);
-        right_belt_motor.run();
-        break;
-      case 'G':
-        while (!Serial.available());
-        gear = Serial.read() - '0';
-        Serial.print("Setting gear to: ");
-        Serial.println(gear);
-        left_belt_motor.set_speed(belt_motor_speeds[gear]);
-        right_belt_motor.set_speed(belt_motor_speeds[gear]);
-        break;
+  if (!EN) {
+    // Serial control is disabled, ignore commands
+    return;
+  }
 
-      // Turret motors control
-      case '4':
-        horizontal_motor.stop();
-        break;
-      case '5':
-        vertical_motor.stop();
-        break;
-      case 'H':
-        horizontal_motor.set_direction(1);
-        horizontal_motor.run();
-        break;
-      case 'h':
-        horizontal_motor.set_direction(0);
-        horizontal_motor.run();
-        break;
-      case 'V':
-        vertical_motor.set_direction(1);
-        vertical_motor.run();
-        break;
-      case 'v':
-        vertical_motor.set_direction(0);
-        vertical_motor.run();
-        break;
-
-      // Cannon motors control
-      case 'S':
-        load_servo.write(load_servo_shoot_pos);
-        load_servo_timer = millis();
-        break;
+  switch (command) {
+    //-----------------------
+    // Enable toggle
+    //-----------------------
+    case '0': // Disable serial control
+      EN = 0;
+      stop_all_motors();
+      break;
+    
+    //-----------------------
+    // Belt motors control
+    //-----------------------
+    case '2': // Stop left belt motor
+      LBM.stop();
+      break;
+    case '3': // Stop right belt motor
+      RBM.stop();
+      break;
+    case 'L': // Run left belt motor forward
+      LBM.set_direction(1);
+      LBM.run();
+      break;
+    case 'l': // Run left belt motor backward
+      LBM.set_direction(0);
+      LBM.run();
+      break;
+    case 'R': // Run right belt motor forward
+      RBM.set_direction(1);
+      RBM.run();
+      break;
+    case 'r': // Run right belt motor backward
+      RBM.set_direction(0);
+      RBM.run();
+      break;
+    case 'G': // Set belt motors gear
+      gear = read_serial_value();
+      LBM.set_speed(BM_SPEEDS[gear]);
+      RBM.set_speed(BM_SPEEDS[gear]);
+      break;
       
-      default:
-        break;
-      }   
-    }
-  }
+    //-----------------------
+    // Turret motors control
+    //-----------------------
+    case '4': // Stop horizontal motor
+      HM.stop();
+      break;
+    case '5': // Stop vertical motor
+      VM.stop();
+      break;
+    case 'H': // Run horizontal motor right
+      HM.set_direction(1);
+      HM.run();
+      break;
+    case 'h': // Run horizontal motor left
+      HM.set_direction(0);
+      HM.run();
+      break;
+    case 'V': // Run vertical motor up
+      VM.set_direction(1);
+      VM.run();
+      break;
+    case 'v': // Run vertical motor down
+      VM.set_direction(0);
+      VM.run();
+      break;
 
-  // Prepare for the next shot
-  if (millis() - load_servo_timer > load_servo_delay_ms) {
-    load_servo.write(load_servo_default_pos);
+    //-----------------------
+    // Cannon motors control
+    //-----------------------
+    case 'S': // Shoot
+      break;
+    
+    default:
+      break;
   }
+}
 
+void stop_all_motors() {
+  LBM.stop();
+  RBM.stop();
+  HM.stop();
+  VM.stop();
+}
+
+uint8_t read_serial_value() {
+  while (!Serial.available()) {
+    // Wait for a value to be available
+  };
+  uint8_t value = Serial.read() - '0';
+  return value;
 }
